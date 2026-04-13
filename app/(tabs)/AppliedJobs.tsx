@@ -1,7 +1,7 @@
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useState, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStorageItemAsync } from '../../utils/storage';
 
 type Job = {
   id: string;
@@ -18,7 +18,7 @@ export default function AppliedJobs() {
     useCallback(() => {
       const fetchApplied = async () => {
         try {
-          const stored = await AsyncStorage.getItem('appliedJobs');
+          const stored = await getStorageItemAsync('appliedJobs');
           if (stored) {
             setJobs(JSON.parse(stored));
           }
@@ -31,16 +31,16 @@ export default function AppliedJobs() {
   );
 
   const renderItem = ({ item }: { item: Job }) => (
-    <View style={styles.card}>
+    <View style={styles.jobStrip}>
       <Text style={styles.jobTitle}>{item.title}</Text>
       <Text style={styles.companyText}>{item.company}</Text>
-      <View style={styles.jobDetails}>
+      <View style={styles.jobDetailsRow}>
         <Text style={styles.detailText}>{item.location}</Text>
-        <Text style={styles.detailText}>•</Text>
+        <Text style={styles.separatorText}>•</Text>
         <Text style={styles.salaryText}>{item.salary}</Text>
-        <View style={styles.appliedStatus}>
-          <Text style={styles.appliedText}>Applied</Text>
-        </View>
+      </View>
+      <View style={styles.appliedTag}>
+        <Text style={styles.appliedTagText}>APPLIED</Text>
       </View>
     </View>
   );
@@ -69,81 +69,87 @@ export default function AppliedJobs() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D0D0D',
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 80,
+    paddingBottom: 30,
     paddingHorizontal: 20,
-    backgroundColor: '#121212',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    backgroundColor: '#0D0D0D',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 32,
     color: '#fff',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#0D0D0D',
   },
   emptyText: {
-    color: '#bbb',
+    fontFamily: 'Inter_400Regular',
+    color: '#555',
     fontSize: 16,
   },
   listContent: {
-    padding: 15,
+    paddingBottom: 100,
   },
-  card: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
+  jobStrip: {
+    backgroundColor: '#111',
     padding: 20,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#333',
+    paddingLeft: 20,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#CFFF04',
   },
   jobTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    fontSize: 14,
     color: '#fff',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   companyText: {
-    fontSize: 16,
-    color: '#bbb',
-    marginBottom: 10,
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 24,
+    color: '#fff',
+    marginBottom: 12,
   },
-  jobDetails: {
+  jobDetailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    marginBottom: 16,
   },
   detailText: {
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
     color: '#888',
-    marginRight: 5,
-    marginBottom: 5,
+  },
+  separatorText: {
+    fontSize: 14,
+    color: '#333',
+    marginHorizontal: 8,
   },
   salaryText: {
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
-    fontWeight: '600',
-    color: '#34C759',
-    marginLeft: 5,
-    marginBottom: 5,
+    color: '#888',
   },
-  appliedStatus: {
-    marginLeft: 'auto',
-    backgroundColor: '#333',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+  appliedTag: {
+    backgroundColor: '#1E1E1E',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  appliedText: {
-    color: '#4ADE80',
-    fontWeight: 'bold',
+  appliedTagText: {
+    fontFamily: 'Inter_700Bold',
+    color: '#555',
+    textTransform: 'uppercase',
     fontSize: 12,
+    letterSpacing: 2,
   },
 });

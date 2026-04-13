@@ -14,60 +14,58 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import * as DocumentPicker from 'expo-document-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStorageItemAsync, setStorageItemAsync } from '../../utils/storage';
+import { useAuth } from '../../ctx/auth';
 
-// ─────────────────────────────────────────────
-// 🔧 CLOUDINARY CONFIG
-// ─────────────────────────────────────────────
+
 const CLOUDINARY_CLOUD_NAME = 'dweisyego';
 const CLOUDINARY_UPLOAD_PRESET = 'the-upload-preset';
-// ─────────────────────────────────────────────
 
-// SecureStore keys — one key per piece of data
+
+
 const KEY_PHOTO = 'user_profile_photo_url';
 const KEY_NAME = 'user_profile_name';
 const KEY_EXPERIENCE = 'user_profile_experience';
-const KEY_EMAIL = 'user_email';        // saved by LoginPage
-const KEY_RESUME = 'user_resume_url';   // ← new: Cloudinary URL of resume PDF
+const KEY_EMAIL = 'user_email';
+const KEY_RESUME = 'user_resume_url';
 
 export default function Profile() {
     const router = useRouter();
+    const { signOut } = useAuth();
 
-    // ── Photo ────────────────────────────────
+
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
 
-    // ── Profile fields ───────────────────────
+
     const [name, setName] = useState('Your Name');
     const [experience, setExperience] = useState('Add your experience...');
     const [email, setEmail] = useState('');
 
-    // ── Resume ───────────────────────────────
+
     const [resumeUrl, setResumeUrl] = useState<string | null>(null);
     const [resumeUploading, setResumeUploading] = useState(false);
-    // We store just the filename to show in UI (e.g. "Resume.pdf")
+
     const [resumeName, setResumeName] = useState<string | null>(null);
 
-    // ── Edit mode ────────────────────────────
-    const [editingName, setEditingName] = useState(false);
-    const [editingExperience, setEditingExperience] = useState(false);
+
+    const [isEditing, setIsEditing] = useState(false);
     const [tempName, setTempName] = useState('');
     const [tempExperience, setTempExperience] = useState('');
 
-    // ──────────────────────────────────────────
-    // Load all saved data on mount
-    // ──────────────────────────────────────────
+
+
     useEffect(() => {
         const load = async () => {
             try {
                 const [savedPhoto, savedName, savedExp, savedEmail, savedResume, savedResumeName] =
                     await Promise.all([
-                        AsyncStorage.getItem(KEY_PHOTO),
-                        AsyncStorage.getItem(KEY_NAME),
-                        AsyncStorage.getItem(KEY_EXPERIENCE),
-                        AsyncStorage.getItem(KEY_EMAIL),
-                        AsyncStorage.getItem(KEY_RESUME),
-                        AsyncStorage.getItem('user_resume_name'),
+                        getStorageItemAsync(KEY_PHOTO),
+                        getStorageItemAsync(KEY_NAME),
+                        getStorageItemAsync(KEY_EXPERIENCE),
+                        getStorageItemAsync(KEY_EMAIL),
+                        getStorageItemAsync(KEY_RESUME),
+                        getStorageItemAsync('user_resume_name'),
                     ]);
                 if (savedPhoto) setPhotoUrl(savedPhoto);
                 if (savedName) setName(savedName);
@@ -82,9 +80,7 @@ export default function Profile() {
         load();
     }, []);
 
-    // ──────────────────────────────────────────
-    // PROFILE PHOTO — pick → upload → save
-    // ──────────────────────────────────────────
+
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
@@ -106,18 +102,18 @@ export default function Profile() {
         setUploading(true);
         try {
             const formData = new FormData();
-            // Attach the image file — { uri, type, name } is the React Native way
+
             formData.append('file', { uri: localUri, type: 'image/jpeg', name: 'profile.jpg' } as any);
             formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
             const response = await fetch(
-                // /image/upload → Cloudinary processes it as an image
+
                 `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
                 { method: 'POST', body: formData, headers: { 'Content-Type': 'multipart/form-data' } },
             );
             const data = await response.json();
             if (data.secure_url) {
-                await AsyncStorage.setItem(KEY_PHOTO, data.secure_url);
+                await setStorageItemAsync(KEY_PHOTO, data.secure_url);
                 setPhotoUrl(data.secure_url);
                 Alert.alert('✅ Success', 'Profile photo updated!');
             } else {
@@ -130,46 +126,20 @@ export default function Profile() {
         }
     };
 
-    // ──────────────────────────────────────────
-    // RESUME — pick PDF → upload → save URL
-    //
-    // STEP-BY-STEP EXPLANATION:
-    //
-    // 1. expo-document-picker opens native file browser
-    //    → user chooses a PDF (or Word doc, etc.)
-    //    → we get back: { uri, name, mimeType, size }
-    //
-    // 2. We build a FormData with the file attached
-    //    → For PDFs we pass { uri, type: 'application/pdf', name }
-    //
-    // 3. We POST to Cloudinary's /raw/upload endpoint
-    //    → /image/upload  → for images (jpg, png)
-    //    → /raw/upload    → for all other files (PDF, DOCX, etc.)
-    //    → /auto/upload   → auto-detect (also works)
-    //
-    // 4. Cloudinary returns { secure_url } — a permanent HTTPS link
-    //
-    // 5. We save that URL to SecureStore under KEY_RESUME
-    //
-    // 6. React state updates → UI shows "View Resume" button
-    // ──────────────────────────────────────────
+
     const pickResume = async () => {
         try {
-            // 1️⃣ Open document picker — filter to PDFs only
+
             const result = await DocumentPicker.getDocumentAsync({
-                type: 'application/pdf',   // only PDFs allowed
-                copyToCacheDirectory: true, // copies file to app cache so we can read it
+                type: 'application/pdf',
+                copyToCacheDirectory: true,
             });
 
-            // If user cancelled, result.canceled === true
             if (result.canceled || !result.assets || result.assets.length === 0) {
-                return; // user pressed Cancel — do nothing
+                return;
             }
 
             const file = result.assets[0];
-            // file.uri    → local path like file:///data/.../cache/Resume.pdf
-            // file.name   → 'Resume.pdf'
-            // file.mimeType → 'application/pdf'
 
             await uploadResumeToCloudinary(file.uri, file.name ?? 'resume.pdf');
 
@@ -181,19 +151,18 @@ export default function Profile() {
     const uploadResumeToCloudinary = async (localUri: string, fileName: string) => {
         setResumeUploading(true);
         try {
-            // 2️⃣ Build FormData — same idea as photo upload
+
             const formData = new FormData();
 
             formData.append('file', {
                 uri: localUri,
-                type: 'application/pdf',  // MIME type for PDF
-                name: fileName,           // Original file name
+                type: 'application/pdf',
+                name: fileName,
             } as any);
 
             formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-            // 3️⃣ POST to /raw/upload — NOT /image/upload!
-            //    Raw = any non-image file (PDF, DOCX, XLSX, etc.)
+
             const response = await fetch(
                 `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
                 {
@@ -206,14 +175,14 @@ export default function Profile() {
             const data = await response.json();
 
             if (data.secure_url) {
-                // 4️⃣ Cloudinary returns a direct link to the PDF
+
                 const cloudUrl: string = data.secure_url;
 
-                // 5️⃣ Save URL + filename to SecureStore
-                await AsyncStorage.setItem(KEY_RESUME, cloudUrl);
-                await AsyncStorage.setItem('user_resume_name', fileName);
 
-                // 6️⃣ Update state → UI re-renders with "View Resume" button
+                await setStorageItemAsync(KEY_RESUME, cloudUrl);
+                await setStorageItemAsync('user_resume_name', fileName);
+
+
                 setResumeUrl(cloudUrl);
                 setResumeName(fileName);
 
@@ -228,209 +197,196 @@ export default function Profile() {
         }
     };
 
-    // Open the Cloudinary URL in the in-app browser.
-    // expo-web-browser uses Chrome Custom Tabs (Android) /
-    // SFSafariViewController (iOS) — these handle Cloudinary
-    // PDF URLs correctly unlike the system browser.
     const openResume = async () => {
         if (!resumeUrl) return;
         await WebBrowser.openBrowserAsync(resumeUrl);
     };
 
 
-    const saveName = async () => {
-        const trimmed = tempName.trim();
-        if (!trimmed) { Alert.alert('Name cannot be empty'); return; }
-        await AsyncStorage.setItem(KEY_NAME, trimmed);
-        setName(trimmed);
-        setEditingName(false);
+    const handleEditProfile = () => {
+        setTempName(name);
+        setTempExperience(experience);
+        setIsEditing(true);
     };
 
-    const saveExperience = async () => {
-        const trimmed = tempExperience.trim();
-        if (!trimmed) { Alert.alert('Experience cannot be empty'); return; }
-        await AsyncStorage.setItem(KEY_EXPERIENCE, trimmed);
-        setExperience(trimmed);
-        setEditingExperience(false);
+    const handleCancelEdit = () => {
+        setIsEditing(false);
     };
 
-    // ──────────────────────────────────────────
-    // RENDER
-    // ──────────────────────────────────────────
+    const handleSaveProfile = async () => {
+        const trimmedName = tempName.trim();
+        const trimmedExp = tempExperience.trim();
+        if (!trimmedName) { Alert.alert('Name cannot be empty'); return; }
+        if (!trimmedExp) { Alert.alert('Experience cannot be empty'); return; }
+
+        await setStorageItemAsync(KEY_NAME, trimmedName);
+        await setStorageItemAsync(KEY_EXPERIENCE, trimmedExp);
+
+        setName(trimmedName);
+        setExperience(trimmedExp);
+        setIsEditing(false);
+    };
+
+
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
             {/* ── Header ── */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
-                    <Text style={styles.backBtn}>Back</Text>
+                    <Text style={styles.backBtn}>BACK</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Profile</Text>
-                <View style={{ width: 40 }} />
+                {!isEditing ? (
+                    <TouchableOpacity onPress={handleEditProfile}>
+                        <Text style={styles.headerEditBtn}>EDIT PROFILE</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ flexDirection: 'row', gap: 15 }}>
+                        <TouchableOpacity onPress={handleCancelEdit}>
+                            <Text style={[styles.headerEditBtn, { color: '#888' }]}>CANCEL</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleSaveProfile}>
+                            <Text style={[styles.headerEditBtn, { color: '#CFFF04' }]}>SAVE</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
 
-            {/* ── Photo ── */}
+            {/* ── Typographic Profile Header ── */}
             <View style={styles.profileSection}>
-                <TouchableOpacity onPress={pickImage} style={styles.avatarWrapper} disabled={uploading} activeOpacity={0.8}>
+                <Text style={styles.massiveName}>{isEditing ? tempName || 'Your Name' : name}</Text>
+                <Text style={styles.accentTitle}>{isEditing ? tempExperience || 'Title' : experience || 'No title set'}</Text>
+
+                <View style={styles.photoContainer}>
                     {photoUrl ? (
-                        <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
+                        <Image source={{ uri: photoUrl }} style={styles.sharpImage} />
                     ) : (
-                        <View style={styles.avatarPlaceholder}>
-                            <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
-                        </View>
+                        <View style={[styles.sharpImage, { backgroundColor: '#222' }]} />
                     )}
-                    <View style={styles.uploadOverlay}>
-                        {uploading
-                            ? <ActivityIndicator color="#fff" size="small" />
-                            : <Text style={styles.cameraIcon}>📷</Text>}
-                    </View>
-                </TouchableOpacity>
-                <Text style={styles.uploadHint}>{uploading ? 'Uploading photo...' : 'Tap to change photo'}</Text>
+                    {isEditing && (
+                        <TouchableOpacity onPress={pickImage} disabled={uploading} style={styles.photoActionBtn}>
+                            <Text style={styles.photoActionText}>
+                                {uploading ? 'UPLOADING...' : (photoUrl ? 'REPLACE PROFILE' : 'UPLOAD PROFILE')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {/* ── Fields ── */}
             <View style={styles.fieldsSection}>
 
                 {/* NAME */}
-                <View style={styles.fieldCard}>
+                <View style={styles.fieldWrapper}>
                     <Text style={styles.fieldLabel}>Name</Text>
-                    {editingName ? (
-                        <>
+                    {isEditing ? (
+                        <View style={styles.inputContainer}>
                             <TextInput
                                 style={styles.textInput}
                                 value={tempName}
                                 onChangeText={setTempName}
-                                autoFocus
                                 placeholder="Enter your name"
                                 placeholderTextColor="#555"
+                                selectionColor="#CFFF04"
                             />
-                            <View style={styles.editActions}>
-                                <TouchableOpacity style={styles.saveBtn} onPress={saveName}>
-                                    <Text style={styles.saveBtnText}>Save</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingName(false)}>
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </>
+                        </View>
                     ) : (
                         <View style={styles.fieldRow}>
                             <Text style={styles.fieldValue}>{name}</Text>
-                            <TouchableOpacity onPress={() => { setTempName(name); setEditingName(true); }} style={styles.editIconBtn}>
-                                <Text style={styles.editIcon}>✏️</Text>
-                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+
+                {/* EXPERIENCE */}
+                <View style={styles.fieldWrapper}>
+                    <Text style={styles.fieldLabel}>Title / Experience</Text>
+                    {isEditing ? (
+                        <View style={[styles.inputContainer, styles.textAreaContainer]}>
+                            <TextInput
+                                style={[styles.textInput, styles.textArea]}
+                                value={tempExperience}
+                                onChangeText={setTempExperience}
+                                multiline
+                                numberOfLines={4}
+                                placeholder="Describe your title or experience..."
+                                placeholderTextColor="#555"
+                                selectionColor="#CFFF04"
+                            />
+                        </View>
+                    ) : (
+                        <View style={styles.fieldRow}>
+                            <Text style={[styles.fieldValue, { flex: 1 }]}>{experience}</Text>
                         </View>
                     )}
                 </View>
 
                 {/* EMAIL — read only */}
-                <View style={styles.fieldCard}>
-                    <Text style={styles.fieldLabel}>Email</Text>
+                <View style={styles.fieldWrapper}>
+                    <Text style={styles.fieldLabel}>Secondary (Email)</Text>
                     <View style={styles.fieldRow}>
                         <Text style={styles.fieldValue}>{email || 'Not available'}</Text>
-                        <Text style={styles.lockedText}>🔒</Text>
+                        <Text style={styles.lockedText}>{isEditing ? 'UNMODIFIABLE' : 'LOCKED'}</Text>
                     </View>
-                    <Text style={styles.fieldHint}>Email cannot be changed</Text>
-                </View>
-
-                {/* EXPERIENCE */}
-                <View style={styles.fieldCard}>
-                    <Text style={styles.fieldLabel}>Experience</Text>
-                    {editingExperience ? (
-                        <>
-                            <TextInput
-                                style={[styles.textInput, styles.textArea]}
-                                value={tempExperience}
-                                onChangeText={setTempExperience}
-                                autoFocus
-                                multiline
-                                numberOfLines={4}
-                                placeholder="Describe your experience..."
-                                placeholderTextColor="#555"
-                            />
-                            <View style={styles.editActions}>
-                                <TouchableOpacity style={styles.saveBtn} onPress={saveExperience}>
-                                    <Text style={styles.saveBtnText}>Save</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingExperience(false)}>
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </>
-                    ) : (
-                        <View style={styles.fieldRow}>
-                            <Text style={[styles.fieldValue, { flex: 1 }]}>{experience}</Text>
-                            <TouchableOpacity onPress={() => { setTempExperience(experience); setEditingExperience(true); }} style={styles.editIconBtn}>
-                                <Text style={styles.editIcon}>✏️</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
                 </View>
 
                 {/* ─────────────────────────────────────────
                     RESUME SECTION
                     ───────────────────────────────────────── */}
-                <View style={styles.fieldCard}>
-                    <Text style={styles.fieldLabel}>Resume / CV</Text>
+                <View style={styles.fieldWrapper}>
+                    <Text style={styles.fieldLabel}>Resume</Text>
 
                     {resumeUrl ? (
-                        /* Resume is uploaded — show filename + action buttons */
                         <>
-                            {/* Filename row */}
                             <View style={styles.resumeFileRow}>
-                                <Text style={styles.pdfIcon}>📄</Text>
                                 <Text style={styles.resumeFileName} numberOfLines={1}>
                                     {resumeName ?? 'Resume.pdf'}
                                 </Text>
                             </View>
 
-                            {/* Action buttons */}
                             <View style={styles.editActions}>
-                                {/* Open in browser / PDF viewer */}
-                                <TouchableOpacity style={styles.saveBtn} onPress={openResume}>
-                                    <Text style={styles.saveBtnText}>View Resume</Text>
+                                <TouchableOpacity style={styles.viewDocBtn} onPress={openResume}>
+                                    <Text style={styles.viewDocBtnText}>VIEW RESUME</Text>
                                 </TouchableOpacity>
 
-                                {/* Re-upload (replace) */}
-                                <TouchableOpacity
-                                    style={styles.cancelBtn}
-                                    onPress={pickResume}
-                                    disabled={resumeUploading}
-                                >
-                                    {resumeUploading
-                                        ? <ActivityIndicator color="#888" size="small" />
-                                        : <Text style={styles.cancelBtnText}>Replace</Text>}
-                                </TouchableOpacity>
+                                {isEditing && (
+                                    <TouchableOpacity
+                                        style={styles.replaceBtn}
+                                        onPress={pickResume}
+                                        disabled={resumeUploading}
+                                    >
+                                        {resumeUploading
+                                            ? <ActivityIndicator color="#888" size="small" />
+                                            : <Text style={styles.replaceBtnText}>REPLACE</Text>}
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </>
                     ) : (
-                        /* No resume yet — show upload button */
-                        <TouchableOpacity
-                            style={styles.uploadResumeBtn}
-                            onPress={pickResume}
-                            disabled={resumeUploading}
-                        >
-                            {resumeUploading ? (
-                                <ActivityIndicator color="#007AFF" size="small" />
-                            ) : (
-                                <>
-                                    <Text style={styles.uploadResumeIcon}>📎</Text>
-                                    <Text style={styles.uploadResumeText}>Upload Resume (PDF)</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    )}
-
-                    {resumeUploading && (
-                        <Text style={styles.fieldHint}>Uploading to cloud, please wait...</Text>
+                        isEditing ? (
+                            <TouchableOpacity
+                                style={styles.uploadResumeBtn}
+                                onPress={pickResume}
+                                disabled={resumeUploading}
+                            >
+                                {resumeUploading ? (
+                                    <ActivityIndicator color="#CFFF04" size="small" />
+                                ) : (
+                                    <Text style={styles.uploadResumeText}>ATTACH RESUME</Text>
+                                )}
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.fieldRow}>
+                                <Text style={styles.fieldValue}>No document attached</Text>
+                            </View>
+                        )
                     )}
                 </View>
 
             </View>
 
             {/* ── Logout ── */}
-            <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/LoginPage')}>
-                <Text style={styles.logoutText}>Logout</Text>
+            <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
+                <Text style={styles.logoutText}>LOGOUT</Text>
             </TouchableOpacity>
 
         </ScrollView>
@@ -441,94 +397,126 @@ export default function Profile() {
 // STYLES
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#121212' },
-    content: { paddingBottom: 50 },
+    container: { flex: 1, backgroundColor: '#0D0D0D' },
+    content: { paddingBottom: 100 },
 
     header: {
-        paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20,
+        paddingTop: 80, paddingBottom: 20, paddingHorizontal: 20,
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        borderBottomWidth: 1, borderBottomColor: '#2a2a2a',
     },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
-    backBtn: { fontSize: 16, color: '#007AFF', fontWeight: '600' },
+    backBtn: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff', letterSpacing: 2 },
+    headerEditBtn: { fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff', letterSpacing: 2 },
 
-    // Photo
-    profileSection: { alignItems: 'center', paddingVertical: 30 },
-    avatarWrapper: { width: 110, height: 110, borderRadius: 55, marginBottom: 8 },
-    avatarImage: { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: '#007AFF' },
-    avatarPlaceholder: {
-        width: 110, height: 110, borderRadius: 55, backgroundColor: '#007AFF',
-        alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#0055CC',
+    // Typographic Profile
+    profileSection: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 40 },
+    massiveName: {
+        fontFamily: 'DMSerifDisplay_400Regular',
+        fontSize: 48,
+        lineHeight: 52,
+        color: '#fff',
+        marginBottom: 8,
     },
-    avatarText: { fontSize: 44, color: '#fff', fontWeight: 'bold' },
-    uploadOverlay: {
-        position: 'absolute', bottom: 0, right: 0,
-        width: 34, height: 34, borderRadius: 17,
-        backgroundColor: 'rgba(0,0,0,0.65)',
-        alignItems: 'center', justifyContent: 'center',
-        borderWidth: 2, borderColor: '#fff',
+    accentTitle: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: 16,
+        color: '#CFFF04',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+        marginBottom: 20,
     },
-    cameraIcon: { fontSize: 16 },
-    uploadHint: { fontSize: 12, color: '#555' },
+    photoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    sharpImage: {
+        width: 48,
+        height: 48,
+        marginRight: 12,
+    },
+    photoActionBtn: {
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+    },
+    photoActionText: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: 12,
+        color: '#555',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+    },
 
-    // Field cards
-    fieldsSection: { paddingHorizontal: 16, gap: 12 },
-    fieldCard: {
-        backgroundColor: '#1e1e1e', borderRadius: 14, padding: 16,
-        borderWidth: 1, borderColor: '#2a2a2a',
-    },
+    // Field Layout
+    fieldsSection: { paddingHorizontal: 20, gap: 30 },
+    fieldWrapper: { width: '100%' },
     fieldLabel: {
-        fontSize: 12, fontWeight: '600', color: '#007AFF',
-        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+        fontFamily: 'Inter_700Bold',
+        fontSize: 11,
+        color: '#fff',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+        marginBottom: 8,
     },
-    fieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    fieldValue: { fontSize: 16, color: '#fff', lineHeight: 22 },
-    fieldHint: { fontSize: 11, color: '#444', marginTop: 6 },
-    editIconBtn: { paddingLeft: 10, paddingVertical: 2 },
-    editIcon: { fontSize: 16 },
-    lockedText: { fontSize: 16, paddingLeft: 10 },
+    fieldRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        borderBottomWidth: 2, borderBottomColor: '#333', paddingVertical: 10,
+    },
+    fieldValue: { fontFamily: 'Inter_400Regular', fontSize: 16, color: '#bbb' },
+    lockedText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#555', letterSpacing: 1 },
 
     // Inline editor
+    inputContainer: {
+        borderBottomWidth: 2, borderBottomColor: '#CFFF04',
+        paddingVertical: 5,
+        backgroundColor: '#1a1a1a',
+        paddingHorizontal: 10,
+    },
+    textAreaContainer: {
+        height: 90,
+    },
     textInput: {
-        backgroundColor: '#2a2a2a', borderRadius: 8,
-        paddingHorizontal: 12, paddingVertical: 10,
+        fontFamily: 'Inter_400Regular',
+        width: '100%',
         color: '#fff', fontSize: 16,
-        borderWidth: 1, borderColor: '#007AFF', marginBottom: 10,
+        paddingVertical: 5,
     },
-    textArea: { height: 100, textAlignVertical: 'top' },
-    editActions: { flexDirection: 'row', gap: 10 },
-    saveBtn: {
-        flex: 1, backgroundColor: '#007AFF', borderRadius: 8,
-        paddingVertical: 10, alignItems: 'center',
+    textArea: { height: 80, textAlignVertical: 'top' },
+
+    // Doc Actions
+    editActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+    viewDocBtn: {
+        flex: 1, backgroundColor: '#CFFF04', borderRadius: 0,
+        paddingVertical: 14, alignItems: 'center',
     },
-    saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-    cancelBtn: {
-        flex: 1, backgroundColor: '#2a2a2a', borderRadius: 8,
-        paddingVertical: 10, alignItems: 'center',
-        borderWidth: 1, borderColor: '#333',
+    viewDocBtnText: { fontFamily: 'Inter_700Bold', color: '#0D0D0D', fontSize: 12, letterSpacing: 1.5 },
+    replaceBtn: {
+        flex: 1, backgroundColor: '#1E1E1E', borderRadius: 0,
+        paddingVertical: 14, alignItems: 'center',
     },
-    cancelBtnText: { color: '#888', fontWeight: '600', fontSize: 15 },
+    replaceBtnText: { fontFamily: 'Inter_700Bold', color: '#888', fontSize: 12, letterSpacing: 1.5 },
 
     // Resume specific
     uploadResumeBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        borderWidth: 1.5, borderColor: '#007AFF', borderRadius: 10,
-        borderStyle: 'dashed', paddingVertical: 16, gap: 8,
+        width: '100%',
+        backgroundColor: '#1E1E1E',
+        alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 18,
+        marginTop: 5,
     },
-    uploadResumeIcon: { fontSize: 22 },
-    uploadResumeText: { color: '#007AFF', fontSize: 15, fontWeight: '600' },
+    uploadResumeText: { fontFamily: 'Inter_700Bold', color: '#fff', fontSize: 12, letterSpacing: 2 },
     resumeFileRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 10,
-        marginBottom: 12,
+        borderBottomWidth: 2, borderBottomColor: '#333',
+        paddingVertical: 10,
     },
-    pdfIcon: { fontSize: 26 },
-    resumeFileName: { color: '#fff', fontSize: 15, flex: 1 },
+    resumeFileName: { fontFamily: 'Inter_400Regular', color: '#bbb', fontSize: 16 },
 
     // Logout
     logoutButton: {
-        margin: 20, marginTop: 28, height: 50,
-        backgroundColor: '#ff3b30', borderRadius: 12,
+        margin: 20, marginTop: 50,
+        backgroundColor: 'transparent',
+        borderWidth: 2, borderColor: '#333',
+        paddingVertical: 16,
         alignItems: 'center', justifyContent: 'center',
     },
-    logoutText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+    logoutText: { fontFamily: 'Inter_700Bold', color: '#555', fontSize: 12, letterSpacing: 2 },
 });

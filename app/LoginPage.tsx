@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../ctx/auth';
+
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +30,7 @@ export default function LoginPage() {
           'x-api-key': 'reqres_4711c3c92a804cc8ab5e9e04f5aa54dc',
         },
         body: JSON.stringify({
-          email: email,
+          email: email.trim(),
           password: password,
         }),
       });
@@ -36,15 +38,14 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok && data.token) {
-        // Save email so Profile page can read it (read-only)
-        await AsyncStorage.setItem('user_email', email);
+        // Save email using Auth context
+        await signIn(email.trim());
 
         if (Platform.OS === 'web') {
           window.alert('Login successful!');
         } else {
           Alert.alert('Success', 'Login successful!');
         }
-        router.push('/HomePage');
       } else {
         const errorMsg = data.error || 'Invalid credentials. Please try again.';
         if (Platform.OS === 'web') {
@@ -68,29 +69,41 @@ export default function LoginPage() {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Back</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#888"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#888"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputWrapper}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#555"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          selectionColor="#CFFF04"
+        />
+      </View>
+
+      <View style={styles.inputWrapper}>
+        <Text style={styles.inputLabel}>Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your password"
+          placeholderTextColor="#555"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          selectionColor="#CFFF04"
+        />
+      </View>
+
       <TouchableOpacity
         style={styles.button}
         onPress={handleLogin}
         disabled={isLoading}
       >
         {isLoading ? (
-          <ActivityIndicator color="#ffffff" />
+          <ActivityIndicator color="#0D0D0D" />
         ) : (
           <Text style={styles.buttonText}>Login</Text>
         )}
@@ -102,43 +115,53 @@ export default function LoginPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
-    alignItems: 'center',
+    backgroundColor: '#0D0D0D',
     justifyContent: 'center',
-    padding: 20,
+    padding: 30,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 50,
+    lineHeight: 56,
     color: '#fff',
-    marginBottom: 10,
+    marginBottom: 60,
   },
-  helpText: {
-    color: '#888',
-    marginBottom: 30,
-    fontStyle: 'italic',
+  inputWrapper: {
+    width: '100%',
+    marginBottom: 35,
+  },
+  inputLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 8,
   },
   input: {
+    fontFamily: 'Inter_400Regular',
     width: '100%',
-    height: 50,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 10,
-    paddingHorizontal: 15,
+    height: 40,
+    borderBottomWidth: 2,
+    borderBottomColor: '#333',
     color: '#fff',
-    marginBottom: 20,
+    fontSize: 16,
+    paddingHorizontal: 0,
   },
   button: {
     width: '100%',
-    height: 50,
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
+    height: 56,
+    backgroundColor: '#CFFF04',
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 20,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontFamily: 'Inter_700Bold',
+    color: '#0D0D0D',
+    fontSize: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   },
 });

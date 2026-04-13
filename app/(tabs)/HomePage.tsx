@@ -3,7 +3,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getStorageItemAsync, setStorageItemAsync } from '../../utils/storage';
 
 // 1. Updated Job type: the API uses string for '_id' instead of number for 'id'.
 type Job = {
@@ -60,7 +60,7 @@ export default function HomePage() {
 
     const hydrateApplyStatus = async () => {
       try {
-        const stored = await AsyncStorage.getItem('appliedJobs');
+        const stored = await getStorageItemAsync('appliedJobs');
         if (stored) {
           const appliedJobs: Job[] = JSON.parse(stored);
           const statusMap: Record<string, string> = {};
@@ -85,11 +85,11 @@ export default function HomePage() {
     }));
 
     try {
-      const stored = await AsyncStorage.getItem('appliedJobs');
+      const stored = await getStorageItemAsync('appliedJobs');
       const appliedJobs = stored ? JSON.parse(stored) : [];
       if (!appliedJobs.find((j: Job) => j.id === item.id)) {
         appliedJobs.push(item);
-        await AsyncStorage.setItem('appliedJobs', JSON.stringify(appliedJobs));
+        await setStorageItemAsync('appliedJobs', JSON.stringify(appliedJobs));
       }
     } catch (error) {
       console.error("Failed to save applied job:", error);
@@ -101,33 +101,31 @@ export default function HomePage() {
   const renderHeader = () => (
     <View style={styles.header}>
       <TouchableOpacity onPress={openDrawer}>
-        <Ionicons name="menu" size={24} color="#fff" />
+        <Ionicons name="menu" size={28} color="#fff" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Available Openings</Text>
-      <TouchableOpacity onPress={() => router.push('/Profile')}>
-        <Text style={styles.profileBtn}>Profile</Text>
-      </TouchableOpacity>
+      <View style={{ width: 28 }} />
     </View>
   );
 
   const renderItem = ({ item }: { item: Job }) => (
-    <View style={styles.card}>
+    <View style={styles.jobStrip}>
       <Text style={styles.jobTitle}>{item.title}</Text>
       <Text style={styles.companyText}>{item.company}</Text>
-      <View style={styles.jobDetails}>
+      <View style={styles.jobDetailsRow}>
         <Text style={styles.detailText}>{item.location}</Text>
-        <Text style={styles.detailText}>•</Text>
+        <Text style={styles.separatorText}>•</Text>
         <Text style={styles.salaryText}>{item.salary}</Text>
-        <TouchableOpacity
-          style={[styles.applyBtn, applyStatus[item.id] === "Applied" && styles.applyBtnDisabled]}
-          onPress={() => handleApply(item)}
-          disabled={applyStatus[item.id] === "Applied"}
-        >
-          <Text style={styles.applyBtnText}>
-            {applyStatus[item.id] ?? "Apply"}
-          </Text>
-        </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        style={[styles.applyBtn, applyStatus[item.id] === "Applied" && styles.applyBtnDisabled]}
+        onPress={() => handleApply(item)}
+        disabled={applyStatus[item.id] === "Applied"}
+      >
+        <Text style={[styles.applyBtnText, applyStatus[item.id] === "Applied" && styles.applyBtnTextDisabled]}>
+          {applyStatus[item.id] ?? "Apply"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -136,7 +134,7 @@ export default function HomePage() {
       {/* 5. Loading State: Conditionally render a spinner while the data is fetching */}
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#CFFF04" />
           <Text style={styles.loadingText}>Fetching jobs...</Text>
         </View>
       ) : (
@@ -155,92 +153,97 @@ export default function HomePage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D0D0D',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#0D0D0D',
   },
   loadingText: {
+    fontFamily: 'Inter_400Regular',
     color: '#bbb',
     marginTop: 10,
     fontSize: 16,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 80,
+    paddingBottom: 30,
     paddingHorizontal: 20,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D0D0D',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 32,
     color: '#fff',
-  },
-  profileBtn: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '600',
   },
   listContent: {
-    padding: 15,
+    paddingBottom: 100, // accommodate floating pill
   },
-  applyBtn: {
-    marginLeft: 'auto',
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  applyBtnDisabled: {
-    backgroundColor: '#444',
-  },
-  applyBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
+  jobStrip: {
+    backgroundColor: '#111',
     padding: 20,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#333',
+    paddingLeft: 20,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#CFFF04',
   },
   jobTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    fontSize: 14,
     color: '#fff',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   companyText: {
-    fontSize: 16,
-    color: '#bbb',
-    marginBottom: 10,
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 24,
+    color: '#fff',
+    marginBottom: 12,
   },
-  jobDetails: {
+  jobDetailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap', // Added flexWrap to handle long salary strings gracefully
+    flexWrap: 'wrap',
+    marginBottom: 16,
   },
   detailText: {
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
     color: '#888',
-    marginRight: 5,
-    marginBottom: 5,
+  },
+  separatorText: {
+    fontSize: 14,
+    color: '#333',
+    marginHorizontal: 8,
   },
   salaryText: {
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
-    fontWeight: '600',
-    color: '#34C759',
-    marginLeft: 5,
-    marginBottom: 5,
+    color: '#888',
+  },
+  applyBtn: {
+    backgroundColor: '#CFFF04',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyBtnDisabled: {
+    backgroundColor: '#1E1E1E',
+  },
+  applyBtnText: {
+    fontFamily: 'Inter_700Bold',
+    color: '#0D0D0D',
+    textTransform: 'uppercase',
+    fontSize: 12,
+    letterSpacing: 2,
+  },
+  applyBtnTextDisabled: {
+    color: '#555',
   },
 });
