@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-
+import * as SecureStore from 'expo-secure-store';
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -36,6 +36,9 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok && data.token) {
+        // Save email so Profile page can read it (read-only)
+        await SecureStore.setItemAsync('user_email', email);
+
         if (Platform.OS === 'web') {
           window.alert('Login successful!');
         } else {
@@ -64,13 +67,13 @@ export default function LoginPage() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Back</Text>
+
       <TextInput
         style={styles.input}
         placeholder="Email"
         placeholderTextColor="#888"
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
         keyboardType="email-address"
       />
       <TextInput

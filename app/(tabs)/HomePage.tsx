@@ -1,7 +1,7 @@
 import { View, Text, TextInput, Button, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useRouter } from 'expo-router'; import { useState } from 'react';
-
-
+import { useRouter, useNavigation } from 'expo-router'; import { useState } from 'react';
+import { DrawerActions } from '@react-navigation/native'; // 2. Added this import
+import { Ionicons } from '@expo/vector-icons';
 
 const data: Job[] = [{ id: 100, title: "Software Engineer", company: "Hexaware", location: "Chennai", salary: "5 LPA" }, { id: 101, title: "System Engineer", company: "TCS", location: "Bangalore", salary: "6 LPA" }, { id: 102, title: "Software Engineer", company: "Hexaware", location: "Chennai", salary: "5 LPA" }];
 type Job = {
@@ -11,7 +11,11 @@ type Job = {
   location: string;
   salary: string;
 }
+
 export default function HomePage() {
+  // Inside your HomePage component:
+  const navigation = useNavigation();
+  const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
   const [applyStatus, setApplyStatus] = useState<Record<number, string>>({});
   const router = useRouter();
 
@@ -26,6 +30,9 @@ export default function HomePage() {
 
   const renderHeader = () => (
     <View style={styles.header}>
+      <TouchableOpacity onPress={openDrawer}>
+        <Ionicons name="menu" size={24} color="#fff" />
+      </TouchableOpacity>
       <Text style={styles.headerTitle}>Available Openings</Text>
       <TouchableOpacity onPress={() => router.push('/Profile')}>
         <Text style={styles.profileBtn}>Profile</Text>
