@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -25,7 +25,7 @@ export default function LoginPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'reqres_65fe7d9921ef43728993710982685316',
+          'x-api-key': 'reqres_4711c3c92a804cc8ab5e9e04f5aa54dc',
         },
         body: JSON.stringify({
           email: email,
@@ -37,7 +37,7 @@ export default function LoginPage() {
 
       if (response.ok && data.token) {
         // Save email so Profile page can read it (read-only)
-        await SecureStore.setItemAsync('user_email', email);
+        await AsyncStorage.setItem('user_email', email);
 
         if (Platform.OS === 'web') {
           window.alert('Login successful!');

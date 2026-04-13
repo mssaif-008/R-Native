@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import * as DocumentPicker from 'expo-document-picker';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─────────────────────────────────────────────
 // 🔧 CLOUDINARY CONFIG
@@ -62,12 +62,12 @@ export default function Profile() {
             try {
                 const [savedPhoto, savedName, savedExp, savedEmail, savedResume, savedResumeName] =
                     await Promise.all([
-                        SecureStore.getItemAsync(KEY_PHOTO),
-                        SecureStore.getItemAsync(KEY_NAME),
-                        SecureStore.getItemAsync(KEY_EXPERIENCE),
-                        SecureStore.getItemAsync(KEY_EMAIL),
-                        SecureStore.getItemAsync(KEY_RESUME),
-                        SecureStore.getItemAsync('user_resume_name'),
+                        AsyncStorage.getItem(KEY_PHOTO),
+                        AsyncStorage.getItem(KEY_NAME),
+                        AsyncStorage.getItem(KEY_EXPERIENCE),
+                        AsyncStorage.getItem(KEY_EMAIL),
+                        AsyncStorage.getItem(KEY_RESUME),
+                        AsyncStorage.getItem('user_resume_name'),
                     ]);
                 if (savedPhoto) setPhotoUrl(savedPhoto);
                 if (savedName) setName(savedName);
@@ -117,7 +117,7 @@ export default function Profile() {
             );
             const data = await response.json();
             if (data.secure_url) {
-                await SecureStore.setItemAsync(KEY_PHOTO, data.secure_url);
+                await AsyncStorage.setItem(KEY_PHOTO, data.secure_url);
                 setPhotoUrl(data.secure_url);
                 Alert.alert('✅ Success', 'Profile photo updated!');
             } else {
@@ -210,8 +210,8 @@ export default function Profile() {
                 const cloudUrl: string = data.secure_url;
 
                 // 5️⃣ Save URL + filename to SecureStore
-                await SecureStore.setItemAsync(KEY_RESUME, cloudUrl);
-                await SecureStore.setItemAsync('user_resume_name', fileName);
+                await AsyncStorage.setItem(KEY_RESUME, cloudUrl);
+                await AsyncStorage.setItem('user_resume_name', fileName);
 
                 // 6️⃣ Update state → UI re-renders with "View Resume" button
                 setResumeUrl(cloudUrl);
@@ -241,7 +241,7 @@ export default function Profile() {
     const saveName = async () => {
         const trimmed = tempName.trim();
         if (!trimmed) { Alert.alert('Name cannot be empty'); return; }
-        await SecureStore.setItemAsync(KEY_NAME, trimmed);
+        await AsyncStorage.setItem(KEY_NAME, trimmed);
         setName(trimmed);
         setEditingName(false);
     };
@@ -249,7 +249,7 @@ export default function Profile() {
     const saveExperience = async () => {
         const trimmed = tempExperience.trim();
         if (!trimmed) { Alert.alert('Experience cannot be empty'); return; }
-        await SecureStore.setItemAsync(KEY_EXPERIENCE, trimmed);
+        await AsyncStorage.setItem(KEY_EXPERIENCE, trimmed);
         setExperience(trimmed);
         setEditingExperience(false);
     };

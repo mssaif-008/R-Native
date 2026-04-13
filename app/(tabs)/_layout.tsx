@@ -6,8 +6,7 @@ export default function Layout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true, // Choice B: Enable headers in the Tabs layout
-        headerLeft: () => <DrawerToggleButton tintColor="#121212" />, // Add the menu button
+        headerShown: false, // Hidden to avoid duplicate header Since we have one in HomePage
         tabBarActiveTintColor: '#121212',
         tabBarInactiveTintColor: 'gray',
         headerTitleStyle: {
@@ -30,6 +29,13 @@ export default function Layout() {
         }}
       />
       <Tabs.Screen
+        name="AppliedJobs"
+        options={{
+          title: "Applied Jobs",
+          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="Profile"
         options={{
           title: "Profile",
@@ -39,7 +45,7 @@ export default function Layout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings", // Ensure title shows in header
+          title: "Settings", 
           href: null,
         }}
       />
@@ -60,7 +66,7 @@ export default function Layout() {
         name="LoginPage"
         options={{
           href: null,
-          headerShown: false, // Keep login clean
+          headerShown: false, 
         }}
       />
     </Tabs>
