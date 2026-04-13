@@ -41,6 +41,18 @@ export default function Layout() {
           tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="index"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="modal"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }
